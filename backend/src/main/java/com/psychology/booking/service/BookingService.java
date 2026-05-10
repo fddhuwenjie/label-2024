@@ -3,6 +3,7 @@ package com.psychology.booking.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.psychology.booking.entity.Booking;
 import com.psychology.booking.entity.Counselor;
+import com.psychology.booking.entity.NotificationType;
 import com.psychology.booking.entity.TimeSlot;
 import com.psychology.booking.exception.BusinessException;
 import com.psychology.booking.mapper.BookingMapper;
@@ -25,6 +26,7 @@ public class BookingService {
     private final UserMapper userMapper;
     private final CounselorMapper counselorMapper;
     private final TimeSlotMapper timeSlotMapper;
+    private final NotificationService notificationService;
 
     public List<Booking> listByUserId(Long userId) {
         List<Booking> bookings = bookingMapper.selectList(
@@ -137,6 +139,15 @@ public class BookingService {
         counselor.setBookingCount(counselor.getBookingCount() + 1);
         counselorMapper.updateById(counselor);
         
+        // 发送预约创建通知
+        notificationService.createNotification(
+            booking.getUserId(),
+            NotificationType.BOOKING_CONFIRMED,
+            "预约提交成功",
+            "您的心理咨询预约已提交，请等待咨询师确认并在30分钟内完成支付。",
+            booking.getId()
+        );
+        
         log.info("Booking created successfully with id: {}", booking.getId());
         return booking;
     }
@@ -199,6 +210,16 @@ public class BookingService {
         
         booking.setStatus(1); // confirmed
         bookingMapper.updateById(booking);
+        
+        // 发送预约确认通知
+        notificationService.createNotification(
+            booking.getUserId(),
+            NotificationType.BOOKING_CONFIRMED,
+            "预约已确认",
+            "您的心理咨询预约已被咨询师确认，请准时参加！",
+            booking.getId()
+        );
+        
         log.info("Booking confirmed successfully");
     }
 
@@ -248,6 +269,16 @@ public class BookingService {
         
         // 释放时间段
         releaseTimeSlot(booking);
+        
+        // 发送预约拒绝通知
+        notificationService.createNotification(
+            booking.getUserId(),
+            NotificationType.BOOKING_REJECTED,
+            "预约已被拒绝",
+            "很抱歉，您的心理咨询预约已被咨询师拒绝。",
+            booking.getId()
+        );
+        
         log.info("Booking rejected successfully");
     }
     
