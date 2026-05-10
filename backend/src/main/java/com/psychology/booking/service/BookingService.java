@@ -3,12 +3,14 @@ package com.psychology.booking.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.psychology.booking.entity.Booking;
 import com.psychology.booking.entity.Counselor;
+import com.psychology.booking.entity.NotificationType;
 import com.psychology.booking.entity.TimeSlot;
 import com.psychology.booking.exception.BusinessException;
 import com.psychology.booking.mapper.BookingMapper;
 import com.psychology.booking.mapper.CounselorMapper;
 import com.psychology.booking.mapper.TimeSlotMapper;
 import com.psychology.booking.mapper.UserMapper;
+import com.psychology.booking.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,7 @@ public class BookingService {
     private final UserMapper userMapper;
     private final CounselorMapper counselorMapper;
     private final TimeSlotMapper timeSlotMapper;
+    private final NotificationService notificationService;
 
     public List<Booking> listByUserId(Long userId) {
         List<Booking> bookings = bookingMapper.selectList(
@@ -138,6 +141,9 @@ public class BookingService {
         counselorMapper.updateById(counselor);
         
         log.info("Booking created successfully with id: {}", booking.getId());
+
+        notificationService.sendBookingCreatedNotification(booking);
+
         return booking;
     }
 
@@ -248,6 +254,12 @@ public class BookingService {
         
         // 释放时间段
         releaseTimeSlot(booking);
+
+        String rejectContent = String.format("您的预约（日期：%s，时间段：%s）已被咨询师拒绝。",
+            booking.getBookingDate(), booking.getTimeSlot());
+        notificationService.sendNotification(booking.getUserId(), booking.getId(),
+            NotificationType.BOOKING_REJECTED, "预约已被拒绝", rejectContent);
+
         log.info("Booking rejected successfully");
     }
     

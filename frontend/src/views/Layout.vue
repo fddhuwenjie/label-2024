@@ -16,6 +16,47 @@
           <router-link to="/bookings" class="nav-item" :class="{ active: $route.path === '/bookings' }">我的预约</router-link>
         </nav>
         <div class="user-area">
+          <el-popover
+            placement="bottom-end"
+            :width="380"
+            trigger="click"
+            @show="fetchNotifications"
+          >
+            <template #reference>
+              <div class="notification-bell">
+                <el-badge :value="unreadCount" :hidden="unreadCount === 0" :max="99">
+                  <el-icon :size="22"><Bell /></el-icon>
+                </el-badge>
+              </div>
+            </template>
+            <div class="notification-panel">
+              <div class="notification-header">
+                <span class="notification-title">通知</span>
+                <el-button v-if="unreadCount > 0" link type="primary" size="small" @click="markAllRead">全部已读</el-button>
+              </div>
+              <div class="notification-list" v-if="notificationList.length > 0">
+                <div
+                  v-for="item in notificationList"
+                  :key="item.id"
+                  class="notification-item"
+                  :class="{ unread: item.read === 0 }"
+                  @click="handleNotificationClick(item)"
+                >
+                  <div class="notification-item-header">
+                    <el-tag :type="getNotificationTagType(item.type)" size="small" class="notification-type-tag">
+                      {{ getNotificationTypeLabel(item.type) }}
+                    </el-tag>
+                    <span class="notification-time">{{ formatTime(item.createdAt) }}</span>
+                  </div>
+                  <div class="notification-item-title">{{ item.title }}</div>
+                  <div class="notification-item-content">{{ item.content }}</div>
+                </div>
+              </div>
+              <div v-else class="notification-empty">
+                <el-empty description="暂无通知" :image-size="60" />
+              </div>
+            </div>
+          </el-popover>
           <el-dropdown @command="handleCommand" trigger="click">
             <div class="user-trigger">
               <div class="user-avatar" :class="{ 'counselor-avatar': isCounselor }">
@@ -59,18 +100,113 @@
 </template>
 
 <script setup>
-import { onMounted, computed } from 'vue'
+import { onMounted, onUnmounted, computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
-import { Monitor } from '@element-plus/icons-vue'
+import { Monitor, Bell } from '@element-plus/icons-vue'
+import { notifications as notificationApi } from '../api'
 
 const router = useRouter()
 const userStore = useUserStore()
 const user = computed(() => userStore.user)
 const isCounselor = computed(() => user.value?.role === 1)
 
+const unreadCount = ref(0)
+const notificationList = ref([])
+let pollTimer = null
+
+const fetchUnreadCount = async () => {
+  try {
+    const res = await notificationApi.unreadCount()
+    if (res.code === 200) {
+      unreadCount.value = res.data
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const fetchNotifications = async () => {
+  try {
+    const res = await notificationApi.recent(20)
+    if (res.code === 200) {
+      notificationList.value = res.data
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const markAllRead = async () => {
+  try {
+    await notificationApi.markAllAsRead()
+    notificationList.value.forEach(n => { n.read = 1 })
+    unreadCount.value = 0
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const handleNotificationClick = async (item) => {
+  if (item.read === 0) {
+    try {
+      await notificationApi.markAsRead(item.id)
+      item.read = 1
+      if (unreadCount.value > 0) {
+        unreadCount.value--
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+  if (item.bookingId) {
+    router.push('/bookings')
+  }
+}
+
+const getNotificationTypeLabel = (type) => {
+  const map = {
+    REMINDER_1H: '1小时提醒',
+    REMINDER_15M: '15分钟提醒',
+    AUTO_CANCEL: '自动取消',
+    BOOKING_CONFIRMED: '预约成功',
+    BOOKING_REJECTED: '预约拒绝'
+  }
+  return map[type] || type
+}
+
+const getNotificationTagType = (type) => {
+  const map = {
+    REMINDER_1H: 'warning',
+    REMINDER_15M: 'danger',
+    AUTO_CANCEL: 'info',
+    BOOKING_CONFIRMED: 'success',
+    BOOKING_REJECTED: 'danger'
+  }
+  return map[type] || ''
+}
+
+const formatTime = (timeStr) => {
+  if (!timeStr) return ''
+  const date = new Date(timeStr)
+  const now = new Date()
+  const diff = now - date
+  if (diff < 60000) return '刚刚'
+  if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前'
+  if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前'
+  return date.toLocaleDateString()
+}
+
 onMounted(() => {
   userStore.fetchUser()
+  fetchUnreadCount()
+  pollTimer = setInterval(fetchUnreadCount, 60000)
+})
+
+onUnmounted(() => {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+  }
 })
 
 const handleCommand = (cmd) => {
@@ -170,6 +306,105 @@ const handleCommand = (cmd) => {
 
 .user-area {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.notification-bell {
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+}
+
+.notification-bell:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #0f172a;
+}
+
+.notification-panel {
+  max-height: 450px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.notification-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 8px;
+}
+
+.notification-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.notification-list {
+  overflow-y: auto;
+  max-height: 380px;
+}
+
+.notification-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-bottom: 4px;
+}
+
+.notification-item:hover {
+  background: #f8fafc;
+}
+
+.notification-item.unread {
+  background: #eff6ff;
+}
+
+.notification-item.unread:hover {
+  background: #e0edff;
+}
+
+.notification-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.notification-type-tag {
+  font-size: 11px;
+}
+
+.notification-time {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.notification-item-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1e293b;
+  margin-bottom: 2px;
+}
+
+.notification-item-content {
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.notification-empty {
+  padding: 20px 0;
 }
 
 .user-trigger {

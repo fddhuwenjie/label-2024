@@ -28,6 +28,8 @@ mybatis-plus:
       logic-delete-field: deleted
       logic-delete-value: 1
       logic-not-delete-value: 0
+    banner: false
+  type-enums-package: com.psychology.booking.entity
 
 jwt:
   # 生产环境应通过环境变量配置
