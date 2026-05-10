@@ -138,4 +138,11 @@ export const payments = {
   getByOrderNo: (orderNo) => api.get(`/payments/order/${orderNo}`)
 }
 
+export const notifications = {
+  my: (limit = 20) => api.get(`/notifications/my?limit=${limit}`),
+  unreadCount: () => api.get('/notifications/unread-count'),
+  markAllRead: () => api.put('/notifications/mark-all-read'),
+  markRead: (id) => api.put(`/notifications/${id}/mark-read`)
+}
+
 export default api
