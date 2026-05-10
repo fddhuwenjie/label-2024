@@ -106,6 +106,21 @@ CREATE TABLE IF NOT EXISTS `payment` (
     FOREIGN KEY (`user_id`) REFERENCES `user`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Notification table
+CREATE TABLE IF NOT EXISTS `notification` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT,
+    `user_id` BIGINT NOT NULL,
+    `booking_id` BIGINT,
+    `type` VARCHAR(30) NOT NULL COMMENT 'REMINDER_1H, REMINDER_15M, AUTO_CANCEL, BOOKING_CONFIRMED, BOOKING_REJECTED',
+    `title` VARCHAR(200) NOT NULL,
+    `content` TEXT,
+    `read` TINYINT DEFAULT 0 COMMENT '0-unread, 1-read',
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`user_id`) REFERENCES `user`(`id`),
+    FOREIGN KEY (`booking_id`) REFERENCES `booking`(`id`),
+    INDEX `idx_user_read` (`user_id`, `read`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Insert test data (password: 123456)
 INSERT INTO `user` (`username`, `password`, `real_name`, `phone`, `role`, `status`) VALUES
 ('admin', '$2a$10$laUwQvESlkkqLF6T/8k9qOAO81w4oqiu5x1Pbb6SEnyGLL7Rr1h5W', '管理员', '13800000000', 2, 1),
