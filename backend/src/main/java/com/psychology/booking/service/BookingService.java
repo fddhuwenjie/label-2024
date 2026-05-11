@@ -3,7 +3,9 @@ package com.psychology.booking.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.psychology.booking.entity.Booking;
 import com.psychology.booking.entity.Counselor;
+import com.psychology.booking.entity.NotificationType;
 import com.psychology.booking.entity.TimeSlot;
+import com.psychology.booking.entity.User;
 import com.psychology.booking.exception.BusinessException;
 import com.psychology.booking.mapper.BookingMapper;
 import com.psychology.booking.mapper.CounselorMapper;
@@ -25,6 +27,7 @@ public class BookingService {
     private final UserMapper userMapper;
     private final CounselorMapper counselorMapper;
     private final TimeSlotMapper timeSlotMapper;
+    private final NotificationService notificationService;
 
     public List<Booking> listByUserId(Long userId) {
         List<Booking> bookings = bookingMapper.selectList(
@@ -137,6 +140,16 @@ public class BookingService {
         counselor.setBookingCount(counselor.getBookingCount() + 1);
         counselorMapper.updateById(counselor);
         
+        // 发送预约创建通知
+        User counselorUser = userMapper.selectById(counselor.getUserId());
+        String counselorName = counselorUser != null && counselorUser.getRealName() != null 
+            ? counselorUser.getRealName() : "咨询师";
+        String title = "预约创建成功";
+        String content = String.format("您已成功预约%s的咨询服务，请在30分钟内完成支付。预约时间：%s %s",
+            counselorName, booking.getBookingDate(), booking.getTimeSlot());
+        notificationService.createNotification(booking.getUserId(), NotificationType.BOOKING_CONFIRMED, 
+            title, content, booking.getId());
+        
         log.info("Booking created successfully with id: {}", booking.getId());
         return booking;
     }
@@ -199,6 +212,17 @@ public class BookingService {
         
         booking.setStatus(1); // confirmed
         bookingMapper.updateById(booking);
+        
+        // 发送预约确认通知
+        User counselorUser = userMapper.selectById(counselor.getUserId());
+        String counselorName = counselorUser != null && counselorUser.getRealName() != null 
+            ? counselorUser.getRealName() : "咨询师";
+        String title = "预约已确认";
+        String content = String.format("您与%s的咨询预约已被确认，请准时参加。预约时间：%s %s",
+            counselorName, booking.getBookingDate(), booking.getTimeSlot());
+        notificationService.createNotification(booking.getUserId(), NotificationType.BOOKING_CONFIRMED, 
+            title, content, booking.getId());
+        
         log.info("Booking confirmed successfully");
     }
 
@@ -248,6 +272,17 @@ public class BookingService {
         
         // 释放时间段
         releaseTimeSlot(booking);
+        
+        // 发送预约拒绝通知
+        User counselorUser = userMapper.selectById(counselor.getUserId());
+        String counselorName = counselorUser != null && counselorUser.getRealName() != null 
+            ? counselorUser.getRealName() : "咨询师";
+        String title = "预约已被拒绝";
+        String content = String.format("很抱歉，您与%s的咨询预约已被拒绝。预约时间：%s %s",
+            counselorName, booking.getBookingDate(), booking.getTimeSlot());
+        notificationService.createNotification(booking.getUserId(), NotificationType.BOOKING_REJECTED, 
+            title, content, booking.getId());
+        
         log.info("Booking rejected successfully");
     }
     
